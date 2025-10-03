@@ -1,1 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Tab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    backdropBlur: {
+                        'xs': '2px',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .page-container {
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .page-container::-webkit-scrollbar {
+            display: none;
+        }
+        .page {
+            scroll-snap-align: start;
+        }
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 1.5rem;
+            height: calc(100vh - 180px);
+            max-height: 600px;
+            padding: 2rem;
+        }
+        .pages-wrapper {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .touch-pan-x {
+            touch-action: pan-x;
+        }
+        .dragging {
+            opacity: 0.5;
+            transform: scale(1.1);
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .drag-over {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(0.95);
+        }
+        .drop-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .icon-element {
+            transition: all 0.2s ease;
+        }
+        .icon-element:not(.dragging):hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="min-h-screen transition-colors duration-300 touch-pan-x">
+    <!-- Background Image -->
+    <div id="background" class="fixed inset-0 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 bg-cover bg-center transition-all duration-500"></div>
+    
+    <!-- Main Container -->
+    <div class="relative min-h-screen flex flex-col">
+        <!-- Header with Settings -->
+        <header class="p-4 flex justify-between items-center z-10">
+            <div class="liquid-glass rounded-2xl p-3 shadow-lg">
+                <h1 class="text-white font-bold text-lg">Home</h1>
+            </div>
+            <button id="settingsBtn" class="liquid-glass rounded-2xl p-4 shadow-lg hover:bg-white/25 transition-colors flex items-center justify-center">
+                <i class="fas fa-cog text-white text-xl"></i>
+            </button>
+        </header>
 
+        <!-- Pages Container -->
+        <div id="pagesContainer" class="flex-1 overflow-hidden relative">
+            <div id="pagesWrapper" class="pages-wrapper flex h-full">
+                <!-- Pages will be dynamically generated -->
+            </div>
+        </div>
+
+        <!-- Page Indicators -->
+        <div id="pageIndicators" class="flex justify-center space-x-2 p-4">
+            <!-- Indicators will be dynamically generated -->
+        </div>
+
+        <!-- Add Icon Button -->
+        <button id="addIconBtn" class="fixed bottom-6 right-6 liquid-glass rounded-full p-5 shadow-lg hover:bg-white/25 transition-colors z-20 flex items-center justify-center">
+            <i class="fas fa-plus text-white text-xl"></i>
+        </button>
+
+        <!-- Add Widget Button -->
+        <button id="addWidgetBtn" class="fixed bottom-6 left-6 liquid-glass rounded-full p-5 shadow-lg hover:bg-white/25 transition-colors z-20 flex items-center justify-center">
+            <i class="fas fa-th-large text-white text-xl"></i>
+        </button>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="liquid-glass rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-white text-xl font-bold mb-4">Settings</h2>
+            
+            <div class="space-y-4">
+                <!-- Background Type Selection -->
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-3">Choose Background Type</label>
+                    <div class="flex space-x-3 mb-4">
+                        <button id="bgUrlTab" class="flex-1 py-2 px-3 rounded-lg bg-white/20 text-white text-sm font-medium transition-colors">Image URL</button>
+                        <button id="bgUploadTab" class="flex-1 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">Upload</button>
+                    </div>
+                </div>
+
+                <!-- Background URL Input -->
+                <div id="bgUrlInput" class="backgroundTypeInput">
+                    <label class="block text-white/80 text-sm font-medium mb-2">Background Image URL</label>
+                    <input id="backgroundUrlInput" type="url" placeholder="Enter image URL" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-base">
+                </div>
+
+                <!-- Background Upload Input -->
+                <div id="bgUploadInput" class="backgroundTypeInput hidden">
+                    <label class="block text-white/80 text-sm font-medium mb-2">Upload Background Image</label>
+                    <input id="backgroundFileInput" type="file" accept="image/*" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-white/20 file:text-white hover:file:bg-white/30 text-base">
+                    <div id="bgUploadPreview" class="mt-2 hidden">
+                        <img id="bgPreviewImage" class="w-full h-32 rounded-lg object-cover">
+                    </div>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button id="saveBackground" class="flex-1 bg-white/20 hover:bg-white/30 text-white font-medium py-3 px-4 rounded-xl transition-colors">Save</button>
+                    <button id="resetBackground" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-white font-medium py-3 px-4 rounded-xl transition-colors">Reset</button>
+                </div>
+            </div>
+            
+            <button id="closeSettings" class="mt-6 w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-4 rounded-xl transition-colors">Close</button>
+        </div>
+    </div>
+
+    <!-- Add Widget Modal -->
+    <div id="addWidgetModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="liquid-glass rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-white text-xl font-bold mb-4">Add Widget</h2>
+            
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Clock Widget -->
+                    <button class="widget-btn liquid-glass rounded-2xl p-4 hover:bg-white/25 transition-colors text-center" data-widget-type="clock">
+                        <div class="text-3xl mb-2"><i class="fas fa-clock text-white"></i></div>
+                        <div class="text-white text-sm font-medium">Clock</div>
+                    </button>
+
+                    <!-- Notes Widget -->
+                    <button class="widget-btn liquid-glass rounded-2xl p-4 hover:bg-white/25 transition-colors text-center" data-widget-type="notes">
+                        <div class="text-3xl mb-2"><i class="fas fa-sticky-note text-white"></i></div>
+                        <div class="text-white text-sm font-medium">Notes</div>
+                    </button>
+
+                    <!-- Weather Widget -->
+                    <button class="widget-btn liquid-glass rounded-2xl p-4 hover:bg-white/25 transition-colors text-center" data-widget-type="weather">
+                        <div class="text-3xl mb-2"><i class="fas fa-cloud-sun text-white"></i></div>
+                        <div class="text-white text-sm font-medium">Weather</div>
+                    </button>
+
+                    <!-- Links Widget -->
+                    <button class="widget-btn liquid-glass rounded-2xl p-4 hover:bg-white/25 transition-colors text-center" data-widget-type="links">
+                        <div class="text-3xl mb-2"><i class="fas fa-link text-white"></i></div>
+                        <div class="text-white text-sm font-medium">Quick Links</div>
+                    </button>
+                </div>
+            </div>
+            
+            <button id="cancelWidget" class="mt-6 w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-4 rounded-xl transition-colors">Close</button>
+        </div>
+    </div>
+
+    <!-- Add Icon Modal -->
+    <div id="addIconModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="liquid-glass rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-white text-xl font-bold mb-4">Add New Icon</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Icon Name</label>
+                    <input id="iconName" type="text" placeholder="Enter icon name" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-base">
+                </div>
+
+                <!-- Icon Type Selection -->
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-3">Choose Icon Type</label>
+                    <div class="flex space-x-3 mb-4">
+                        <button id="urlTab" class="flex-1 py-2 px-3 rounded-lg bg-white/20 text-white text-sm font-medium transition-colors">Image URL</button>
+                        <button id="uploadTab" class="flex-1 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">Upload</button>
+                        <button id="fontAwesomeTab" class="flex-1 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">Font Awesome</button>
+                    </div>
+                </div>
+
+                <!-- Image URL Input -->
+                <div id="urlInput" class="iconTypeInput">
+                    <label class="block text-white/80 text-sm font-medium mb-2">Icon Image URL</label>
+                    <input id="iconImageUrl" type="url" placeholder="Enter image URL" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-base">
+                </div>
+
+                <!-- File Upload Input -->
+                <div id="uploadInput" class="iconTypeInput hidden">
+                    <label class="block text-white/80 text-sm font-medium mb-2">Upload Image</label>
+                    <input id="iconImageFile" type="file" accept="image/*" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-white/20 file:text-white hover:file:bg-white/30 text-base">
+                    <div id="uploadPreview" class="mt-2 hidden">
+                        <img id="previewImage" class="w-16 h-16 rounded-lg object-cover mx-auto">
+                    </div>
+                </div>
+
+                <!-- Font Awesome Input -->
+                <div id="fontAwesomeInput" class="iconTypeInput hidden">
+                    <label class="block text-white/80 text-sm font-medium mb-2">Font Awesome Icon</label>
+                    <input id="iconFontAwesome" type="text" placeholder="e.g., fas fa-home, fab fa-github" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-base">
+                    <div class="mt-2 text-white/60 text-xs">
+                        Enter Font Awesome class names. Examples: fas fa-home, fab fa-github, fas fa-envelope
+                    </div>
+                    <div id="fontAwesomePreview" class="mt-2 flex justify-center">
+                        <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                            <i id="previewIcon" class="text-white text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Link URL</label>
+                    <input id="iconUrl" type="url" placeholder="Enter destination URL" class="w-full p-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-base">
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button id="saveIcon" class="flex-1 bg-white/20 hover:bg-white/30 text-white font-medium py-3 px-4 rounded-xl transition-colors">Add Icon</button>
+                    <button id="cancelIcon" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-white font-medium py-3 px-4 rounded-xl transition-colors">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links Edit Modal -->
+    <div id="editLinksModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="liquid-glass rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-white text-xl font-bold mb-4">Edit Quick Links</h2>
+            
+            <div id="linksList" class="space-y-3 mb-4">
+                <!-- Links will be dynamically generated -->
+            </div>
+            
+            <div class="space-y-3">
+                <div class="flex space-x-2">
+                    <input id="newLinkName" type="text" placeholder="Link name" class="flex-1 p-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-sm">
+                    <input id="newLinkUrl" type="url" placeholder="URL" class="flex-1 p-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-sm">
+                    <button id="addLinkBtn" class="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors">
+                        <i class="fas fa-plus text-sm"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <button id="closeLinkEditor" class="mt-6 w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-4 rounded-xl transition-colors">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize state
+        let icons = [
+            { id: 1, name: 'Google', iconType: 'fontawesome', image: 'fab fa-google', url: 'https://www.google.com' },
+            { id: 2, name: 'GitHub', iconType: 'fontawesome', image: 'fab fa-github', url: 'https://www.github.com' },
+            { id: 3, name: 'HTML Viewer', iconType: 'fontawesome', image: 'fas fa-code', url: 'https://htmlvi.onrender.com' }
+        ];
+        
+        let widgets = [];
+        let currentPage = 0;
+        let currentIconType = 'url';
+        let currentBackgroundType = 'url';
+        let currentEditingWidget = null;
+        const MAX_WIDGETS_PER_PAGE = 2;
+        const MAX_ICONS_PER_PAGE = 6;
+        const MAX_ITEMS_PER_PAGE = 8;
+
+        // Drag and drop state
+        let draggedIcon = null;
+        let draggedIconIndex = -1;
+        let dropTargetIndex = -1;
+
+        // Touch/swipe handling
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchCurrentX = 0;
+        let touchCurrentY = 0;
+        let isDraggingPage = false;
+        let isDraggingIcon = false;
+        let initialTransform = 0;
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            setupKeyboardShortcuts();
+            renderPages();
+            setupSwipeHandlers();
+        });
+
+        // Also setup immediately in case DOMContentLoaded already fired
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                setupEventListeners();
+                setupKeyboardShortcuts();
+                renderPages();
+                setupSwipeHandlers();
+            });
+        } else {
+            setupEventListeners();
+            setupKeyboardShortcuts();
+            renderPages();
+            setupSwipeHandlers();
+        }
+
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+Number to jump to page
+                if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+                    e.preventDefault();
+                    const pageNum = parseInt(e.key) - 1;
+                    const totalPages = getTotalPages();
+                    if (pageNum < totalPages) {
+                        goToPage(pageNum);
+                    }
+                }
+                
+                // Arrow keys to navigate pages
+                if (e.key === 'ArrowLeft' && currentPage > 0) {
+                    e.preventDefault();
+                    goToPage(currentPage - 1);
+                } else if (e.key === 'ArrowRight' && currentPage < getTotalPages() - 1) {
+                    e.preventDefault();
+                    goToPage(currentPage + 1);
+                }
+            });
+        }
+
+        function setupSwipeHandlers() {
+            const pagesContainer = document.getElementById('pagesContainer');
+            
+            // Touch events for mobile
+            pagesContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+            pagesContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+            pagesContainer.addEventListener('touchend', handleTouchEnd, { passive: false });
+            
+            // Mouse events for desktop
+            pagesContainer.addEventListener('mousedown', handleMouseStart);
+            pagesContainer.addEventListener('mousemove', handleMouseMove);
+            pagesContainer.addEventListener('mouseup', handleMouseEnd);
+            pagesContainer.addEventListener('mouseleave', handleMouseEnd);
+        }
+
+        function handleTouchStart(e) {
+            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+            
+            const iconElement = e.target.closest('[data-icon-id]');
+            if (iconElement) {
+                isDraggingIcon = true;
+                return;
+            }
+            
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            touchCurrentX = touchStartX;
+            touchCurrentY = touchStartY;
+            
+            const pagesWrapper = document.getElementById('pagesWrapper');
+            const transform = getComputedStyle(pagesWrapper).transform;
+            initialTransform = transform !== 'none' ? new DOMMatrix(transform).m41 : 0;
+            
+            isDraggingPage = false;
+        }
+
+        function handleTouchMove(e) {
+            if (isDraggingIcon) return;
+            if (!touchStartX || e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+            
+            touchCurrentX = e.touches[0].clientX;
+            touchCurrentY = e.touches[0].clientY;
+            
+            const deltaX = touchCurrentX - touchStartX;
+            const deltaY = touchCurrentY - touchStartY;
+            
+            // Only start dragging if horizontal movement is greater than vertical
+            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+                isDraggingPage = true;
+                e.preventDefault();
+                
+                const pagesWrapper = document.getElementById('pagesWrapper');
+                const newTransform = initialTransform + deltaX;
+                pagesWrapper.style.transform = `translateX(${newTransform}px)`;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (isDraggingIcon) {
+                isDraggingIcon = false;
+                return;
+            }
+            
+            if (!isDraggingPage || !touchStartX) {
+                touchStartX = 0;
+                return;
+            }
+            
+            const deltaX = touchCurrentX - touchStartX;
+            const threshold = window.innerWidth * 0.3; // 30% of screen width
+            
+            if (Math.abs(deltaX) > threshold) {
+                if (deltaX > 0 && currentPage > 0) {
+                    // Swipe right - previous page
+                    goToPage(currentPage - 1);
+                } else if (deltaX < 0 && currentPage < getTotalPages() - 1) {
+                    // Swipe left - next page  
+                    goToPage(currentPage + 1);
+                } else {
+                    // Snap back to current page
+                    goToPage(currentPage);
+                }
+            } else {
+                // Snap back to current page
+                goToPage(currentPage);
+            }
+            
+            touchStartX = 0;
+            isDraggingPage = false;
+        }
+
+        function handleMouseStart(e) {
+            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+            
+            const iconElement = e.target.closest('[data-icon-id]');
+            if (iconElement) {
+                isDraggingIcon = true;
+                return;
+            }
+            
+            touchStartX = e.clientX;
+            touchStartY = e.clientY;
+            touchCurrentX = touchStartX;
+            touchCurrentY = touchStartY;
+            
+            const pagesWrapper = document.getElementById('pagesWrapper');
+            const transform = getComputedStyle(pagesWrapper).transform;
+            initialTransform = transform !== 'none' ? new DOMMatrix(transform).m41 : 0;
+            
+            isDraggingPage = false;
+            e.preventDefault();
+        }
+
+        function handleMouseMove(e) {
+            if (isDraggingIcon) return;
+            if (!touchStartX || e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+            
+            touchCurrentX = e.clientX;
+            touchCurrentY = e.clientY;
+            
+            const deltaX = touchCurrentX - touchStartX;
+            const deltaY = touchCurrentY - touchStartY;
+            
+            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+                isDraggingPage = true;
+                e.preventDefault();
+                
+                const pagesWrapper = document.getElementById('pagesWrapper');
+                const newTransform = initialTransform + deltaX;
+                pagesWrapper.style.transform = `translateX(${newTransform}px)`;
+            }
+        }
+
+        function handleMouseEnd(e) {
+            if (isDraggingIcon) {
+                isDraggingIcon = false;
+                return;
+            }
+            
+            if (!isDraggingPage || !touchStartX) {
+                touchStartX = 0;
+                return;
+            }
+            
+            const deltaX = touchCurrentX - touchStartX;
+            const threshold = window.innerWidth * 0.3;
+            
+            if (Math.abs(deltaX) > threshold) {
+                if (deltaX > 0 && currentPage > 0) {
+                    goToPage(currentPage - 1);
+                } else if (deltaX < 0 && currentPage < getTotalPages() - 1) {
+                    goToPage(currentPage + 1);
+                } else {
+                    goToPage(currentPage);
+                }
+            } else {
+                goToPage(currentPage);
+            }
+            
+            touchStartX = 0;
+            isDraggingPage = false;
+        }
+
+        // Drag and Drop Functions
+        function setupDragAndDrop() {
+            document.addEventListener('dragover', handleDragOver);
+            document.addEventListener('drop', handleDrop);
+        }
+
+        function handleDragStart(e, icon, index) {
+            draggedIcon = icon;
+            draggedIconIndex = index;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', e.target.outerHTML);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const iconElement = e.target.closest('[data-icon-id]');
+            if (iconElement && !iconElement.classList.contains('dragging')) {
+                iconElement.classList.add('drag-over');
+                const iconId = parseInt(iconElement.getAttribute('data-icon-id'));
+                dropTargetIndex = icons.findIndex(icon => icon.id === iconId);
+            }
+        }
+
+        function handleDragEnter(e) {
+            e.preventDefault();
+            const iconElement = e.target.closest('[data-icon-id]');
+            if (iconElement && !iconElement.classList.contains('dragging')) {
+                iconElement.classList.add('drag-over');
+            }
+        }
+
+        function handleDragLeave(e) {
+            const iconElement = e.target.closest('[data-icon-id]');
+            if (iconElement) {
+                iconElement.classList.remove('drag-over');
+            }
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            
+            // Remove all drag-over classes
+            document.querySelectorAll('.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            
+            draggedIcon = null;
+            draggedIconIndex = -1;
+            dropTargetIndex = -1;
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            
+            const iconElement = e.target.closest('[data-icon-id]');
+            if (iconElement && draggedIcon && draggedIconIndex !== -1 && dropTargetIndex !== -1) {
+                // Remove the dragged icon from its current position
+                const [movedIcon] = icons.splice(draggedIconIndex, 1);
+                
+                // Insert it at the new position
+                icons.splice(dropTargetIndex, 0, movedIcon);
+                
+                // Re-render pages
+                renderPages();
+            }
+            
+            // Clean up
+            document.querySelectorAll('.dragging').forEach(el => {
+                el.classList.remove('dragging');
+            });
+            document.querySelectorAll('.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            
+            draggedIcon = null;
+            draggedIconIndex = -1;
+            dropTargetIndex = -1;
+        }
+
+        function getTotalPages() {
+            let pages = 0;
+            let currentWidgets = 0;
+            let currentIcons = 0;
+            
+            for (let i = 0; i < widgets.length + icons.length; i++) {
+                const isWidget = i < widgets.length;
+                
+                if (isWidget) {
+                    if (currentWidgets >= MAX_WIDGETS_PER_PAGE || (currentWidgets + currentIcons) >= MAX_ITEMS_PER_PAGE) {
+                        pages++;
+                        currentWidgets = 1;
+                        currentIcons = 0;
+                    } else {
+                        currentWidgets++;
+                    }
+                } else {
+                    if (currentIcons >= MAX_ICONS_PER_PAGE || (currentWidgets + currentIcons) >= MAX_ITEMS_PER_PAGE) {
+                        pages++;
+                        currentWidgets = 0;
+                        currentIcons = 1;
+                    } else {
+                        currentIcons++;
+                    }
+                }
+            }
+            
+            return Math.max(1, pages + (currentWidgets > 0 || currentIcons > 0 ? 1 : 0));
+        }
+
+        function goToPage(pageIndex) {
+            const totalPages = getTotalPages();
+            currentPage = Math.max(0, Math.min(pageIndex, totalPages - 1));
+            
+            const pagesWrapper = document.getElementById('pagesWrapper');
+            const offset = -currentPage * window.innerWidth;
+            pagesWrapper.style.transform = `translateX(${offset}px)`;
+            
+            updatePageIndicators();
+        }
+
+        function setupEventListeners() {
+            // Settings modal
+            document.getElementById('settingsBtn').addEventListener('click', () => toggleModal('settingsModal', true));
+            document.getElementById('closeSettings').addEventListener('click', () => toggleModal('settingsModal', false));
+
+            // Icon modal
+            document.getElementById('addIconBtn').addEventListener('click', () => toggleModal('addIconModal', true));
+            document.getElementById('cancelIcon').addEventListener('click', () => {
+                toggleModal('addIconModal', false);
+                clearIconForm();
+            });
+
+            // Widget modal - Use event delegation to prevent double binding
+            document.getElementById('addWidgetBtn').addEventListener('click', () => toggleModal('addWidgetModal', true));
+            document.getElementById('cancelWidget').addEventListener('click', () => toggleModal('addWidgetModal', false));
+
+            // Links modal
+            document.getElementById('closeLinkEditor').addEventListener('click', () => toggleModal('editLinksModal', false));
+            document.getElementById('addLinkBtn').addEventListener('click', addNewLink);
+
+            // Background tabs
+            document.getElementById('bgUrlTab').addEventListener('click', () => switchBackgroundType('url'));
+            document.getElementById('bgUploadTab').addEventListener('click', () => switchBackgroundType('upload'));
+
+            // Background file upload
+            document.getElementById('backgroundFileInput').addEventListener('change', handleBackgroundFileUpload);
+
+            // Background save/reset
+            document.getElementById('saveBackground').addEventListener('click', saveBackground);
+            document.getElementById('resetBackground').addEventListener('click', resetBackground);
+
+            // Icon tabs
+            document.getElementById('urlTab').addEventListener('click', () => switchIconType('url'));
+            document.getElementById('uploadTab').addEventListener('click', () => switchIconType('upload'));
+            document.getElementById('fontAwesomeTab').addEventListener('click', () => switchIconType('fontawesome'));
+
+            // Icon file upload
+            document.getElementById('iconImageFile').addEventListener('change', handleIconFileUpload);
+
+            // Font Awesome preview
+            document.getElementById('iconFontAwesome').addEventListener('input', updateFontAwesomePreview);
+
+            // Save icon
+            document.getElementById('saveIcon').addEventListener('click', saveIcon);
+
+            // Widget buttons - Use event delegation
+            document.getElementById('addWidgetModal').addEventListener('click', (e) => {
+                const widgetBtn = e.target.closest('.widget-btn');
+                if (widgetBtn) {
+                    const widgetType = widgetBtn.dataset.widgetType;
+                    addWidget(widgetType);
+                }
+            });
+
+            // Modal outside click
+            ['settingsModal', 'addIconModal', 'addWidgetModal', 'editLinksModal'].forEach(modalId => {
+                document.getElementById(modalId).addEventListener('click', (e) => {
+                    if (e.target.id === modalId) {
+                        toggleModal(modalId, false);
+                        if (modalId === 'addIconModal') clearIconForm();
+                    }
+                });
+            });
+
+            // Setup drag and drop
+            setupDragAndDrop();
+        }
+
+        function toggleModal(modalId, show) {
+            const modal = document.getElementById(modalId);
+            if (show) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        // Background functions
+        function switchBackgroundType(type) {
+            currentBackgroundType = type;
+            
+            document.getElementById('bgUrlTab').className = type === 'url' 
+                ? 'flex-1 py-2 px-3 rounded-lg bg-white/20 text-white text-sm font-medium transition-colors'
+                : 'flex-1 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors';
+            
+            document.getElementById('bgUploadTab').className = type === 'upload' 
+                ? 'flex-1 py-2 px-3 rounded-lg bg-white/20 text-white text-sm font-medium transition-colors'
+                : 'flex-1 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors';
+
+            document.getElementById('bgUrlInput').classList.toggle('hidden', type !== 'url');
+            document.getElementById('bgUploadInput').classList.toggle('hidden', type !== 'upload');
+        }
+
+        function handleBackgroundFileUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('bgPreviewImage').src = e.target.result;
+                    document.getElementById('bgUploadPreview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function saveBackground() {
+            if (currentBackgroundType === 'url') {
+                const url = document.getElementById('backgroundUrlInput').value.trim();
+                if (url) {
+                    document.getElementById('background').style.backgroundImage = `url(${url})`;
+                }
+            } else if (currentBackgroundType === 'upload') {
+                const file = document.getElementById('backgroundFileInput').files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        document.getElementById('background').style.backgroundImage = `url(${e.target.result})`;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+        }
+
+        function resetBackground() {
+            document.getElementById('background').style.backgroundImage = '';
+            document.getElementById('backgroundUrlInput').value = '';
+            document.getElementById('backgroundFileInput').value = '';
+            document.getElementById('bgUploadPreview').classList.add('hidden');
+            switchBackgroundType('url');
+        }
+
+        // Icon functions
+        function switchIconType(type) {
+            currentIconType = type;
+            
+            ['url', 'upload', 'fontawesome'].forEach(t => {
+                const tab = document.getElementById(t + 'Tab');
+                if (t === 'fontawesome') tab = document.getElementById('fontAwesomeTab');
+                
+                if (t === type) {
+                    tab.className = 'flex-1 py-2 px-3 rounded-lg bg-white/20 text-white text-sm font-medium transition-colors';
+                } else {
+                    tab.className = 'flex-1 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors';
+                }
+            });
+
+            document.getElementById('urlInput').classList.toggle('hidden', type !== 'url');
+            document.getElementById('uploadInput').classList.toggle('hidden', type !== 'upload');
+            document.getElementById('fontAwesomeInput').classList.toggle('hidden', type !== 'fontawesome');
+        }
+
+        function handleIconFileUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('previewImage').src = e.target.result;
+                    document.getElementById('uploadPreview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateFontAwesomePreview(e) {
+            const iconClass = e.target.value.trim();
+            const previewIcon = document.getElementById('previewIcon');
+            previewIcon.className = iconClass + ' text-white text-xl';
+        }
+
+        function saveIcon() {
+            const name = document.getElementById('iconName').value.trim();
+            const url = document.getElementById('iconUrl').value.trim();
+            
+            if (!name || !url) return;
+
+            let image = '';
+            
+            if (currentIconType === 'url') {
+                image = document.getElementById('iconImageUrl').value.trim();
+                if (!image) return;
+            } else if (currentIconType === 'upload') {
+                const file = document.getElementById('iconImageFile').files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const newIcon = {
+                        id: Date.now(),
+                        name,
+                        iconType: 'upload',
+                        image: e.target.result,
+                        url
+                    };
+                    icons.push(newIcon);
+                    renderPages();
+                    toggleModal('addIconModal', false);
+                    clearIconForm();
+                };
+                reader.readAsDataURL(file);
+                return;
+            } else if (currentIconType === 'fontawesome') {
+                image = document.getElementById('iconFontAwesome').value.trim();
+                if (!image) return;
+            }
+
+            const newIcon = {
+                id: Date.now(),
+                name,
+                iconType: currentIconType,
+                image,
+                url
+            };
+            
+            icons.push(newIcon);
+            renderPages();
+            toggleModal('addIconModal', false);
+            clearIconForm();
+        }
+
+        function clearIconForm() {
+            document.getElementById('iconName').value = '';
+            document.getElementById('iconImageUrl').value = '';
+            document.getElementById('iconImageFile').value = '';
+            document.getElementById('iconFontAwesome').value = '';
+            document.getElementById('iconUrl').value = '';
+            document.getElementById('uploadPreview').classList.add('hidden');
+            document.getElementById('previewIcon').className = 'text-white text-xl';
+            switchIconType('url');
+        }
+
+        function deleteIcon(id) {
+            icons = icons.filter(icon => icon.id !== id);
+            renderPages();
+        }
+
+        // Widget functions
+        function addWidget(type) {
+            const newWidget = {
+                id: Date.now(),
+                type: type,
+                data: getDefaultWidgetData(type),
+                size: getWidgetSize(type)
+            };
+
+            widgets.push(newWidget);
+            renderPages();
+            toggleModal('addWidgetModal', false);
+        }
+
+        function getDefaultWidgetData(type) {
+            switch(type) {
+                case 'clock': return { format: '12h' };
+                case 'notes': return { content: '' };
+                case 'weather': return { location: 'New York', temp: '72°F', condition: 'Sunny' };
+                case 'links': return { links: [] };
+                default: return {};
+            }
+        }
+
+        function getWidgetSize(type) {
+            switch(type) {
+                case 'clock': return { width: 2, height: 1 };
+                case 'notes': return { width: 2, height: 2 };
+                case 'weather': return { width: 2, height: 2 };
+                case 'links': return { width: 2, height: 2 };
+                default: return { width: 2, height: 1 };
+            }
+        }
+
+        function deleteWidget(id) {
+            widgets = widgets.filter(widget => widget.id !== id);
+            renderPages();
+        }
+
+        function updateWidgetData(widgetId, key, value) {
+            const widget = widgets.find(w => w.id === widgetId);
+            if (widget) {
+                widget.data[key] = value;
+            }
+        }
+
+        // Quick Links functions
+        function editLinks(widgetId) {
+            currentEditingWidget = widgetId;
+            const widget = widgets.find(w => w.id === widgetId);
+            if (widget) {
+                renderLinksList(widget.data.links || []);
+                toggleModal('editLinksModal', true);
+            }
+        }
+
+        function renderLinksList(links) {
+            const linksList = document.getElementById('linksList');
+            linksList.innerHTML = '';
+            
+            links.forEach((link, index) => {
+                const linkDiv = document.createElement('div');
+                linkDiv.className = 'flex items-center space-x-2 p-2 bg-white/10 rounded-lg';
+                linkDiv.innerHTML = `
+                    <i class="fas fa-link text-white/60"></i>
+                    <span class="flex-1 text-white text-sm">${link.name}</span>
+                    <button onclick="removeLink(${index})" class="text-red-400 hover:text-red-300 p-1">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                `;
+                linksList.appendChild(linkDiv);
+            });
+        }
+
+        function addNewLink() {
+            const name = document.getElementById('newLinkName').value.trim();
+            const url = document.getElementById('newLinkUrl').value.trim();
+            
+            if (!name || !url) return;
+            
+            const widget = widgets.find(w => w.id === currentEditingWidget);
+            if (widget) {
+                if (!widget.data.links) widget.data.links = [];
+                widget.data.links.push({ name, url });
+                
+                renderLinksList(widget.data.links);
+                renderPages();
+                
+                document.getElementById('newLinkName').value = '';
+                document.getElementById('newLinkUrl').value = '';
+            }
+        }
+
+        function removeLink(index) {
+            const widget = widgets.find(w => w.id === currentEditingWidget);
+            if (widget && widget.data.links) {
+                widget.data.links.splice(index, 1);
+                renderLinksList(widget.data.links);
+                renderPages();
+            }
+        }
+
+        // Render functions
+        function renderPages() {
+            const totalPages = getTotalPages();
+            
+            const pagesWrapper = document.getElementById('pagesWrapper');
+            const indicatorsContainer = document.getElementById('pageIndicators');
+            
+            pagesWrapper.innerHTML = '';
+            indicatorsContainer.innerHTML = '';
+
+            for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+                const page = createPage(pageIndex);
+                pagesWrapper.appendChild(page);
+
+                const indicator = createPageIndicator(pageIndex);
+                indicatorsContainer.appendChild(indicator);
+            }
+
+            // Ensure current page is still valid
+            if (currentPage >= totalPages) {
+                currentPage = Math.max(0, totalPages - 1);
+            }
+
+            goToPage(currentPage);
+        }
+
+        function createPage(pageIndex) {
+            const page = document.createElement('div');
+            page.className = 'page flex-shrink-0';
+            page.style.width = '100vw';
+            page.style.minHeight = '100%';
+
+            const grid = document.createElement('div');
+            grid.className = 'icon-grid';
+
+            // Calculate items for this page based on widget/icon limits
+            const pageItems = getPageItems(pageIndex);
+
+            pageItems.forEach(item => {
+                let itemElement;
+                if (item.type) { // It's a widget
+                    itemElement = createWidgetElement(item);
+                } else { // It's an icon
+                    itemElement = createIconElement(item);
+                }
+                grid.appendChild(itemElement);
+            });
+
+            page.appendChild(grid);
+            return page;
+        }
+
+        function getPageItems(pageIndex) {
+            const allItems = [...widgets, ...icons];
+            const pageItems = [];
+            let currentPage = 0;
+            let currentWidgets = 0;
+            let currentIcons = 0;
+            
+            for (let i = 0; i < allItems.length; i++) {
+                const item = allItems[i];
+                const isWidget = item.type !== undefined;
+                
+                // Check if we need to start a new page
+                if (isWidget) {
+                    if (currentWidgets >= MAX_WIDGETS_PER_PAGE || (currentWidgets + currentIcons) >= MAX_ITEMS_PER_PAGE) {
+                        currentPage++;
+                        currentWidgets = 0;
+                        currentIcons = 0;
+                    }
+                } else {
+                    if (currentIcons >= MAX_ICONS_PER_PAGE || (currentWidgets + currentIcons) >= MAX_ITEMS_PER_PAGE) {
+                        currentPage++;
+                        currentWidgets = 0;
+                        currentIcons = 0;
+                    }
+                }
+                
+                // Add item to current page if it matches the target page
+                if (currentPage === pageIndex) {
+                    pageItems.push(item);
+                    if (isWidget) {
+                        currentWidgets++;
+                    } else {
+                        currentIcons++;
+                    }
+                } else if (currentPage > pageIndex) {
+                    break;
+                }
+                
+                // Update counters for next iteration
+                if (currentPage < pageIndex) {
+                    if (isWidget) {
+                        currentWidgets++;
+                    } else {
+                        currentIcons++;
+                    }
+                }
+            }
+            
+            return pageItems;
+        }
+
+        function createIconElement(icon) {
+            const iconIndex = icons.findIndex(i => i.id === icon.id);
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'icon-element rounded-2xl p-4 hover:bg-white/15 transition-all duration-200 cursor-pointer group relative select-none flex flex-col items-center justify-center';
+            iconDiv.setAttribute('data-icon-id', icon.id);
+            iconDiv.draggable = true;
+
+            // Add drag event listeners
+            iconDiv.addEventListener('dragstart', (e) => handleDragStart(e, icon, iconIndex));
+            iconDiv.addEventListener('dragend', handleDragEnd);
+            iconDiv.addEventListener('dragover', handleDragOver);
+            iconDiv.addEventListener('dragenter', handleDragEnter);
+            iconDiv.addEventListener('dragleave', handleDragLeave);
+
+            let iconContent = '';
+            
+            if (icon.iconType === 'fontawesome') {
+                iconContent = `
+                    <div class="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center pointer-events-none mb-3">
+                        <i class="${icon.image} text-white text-3xl"></i>
+                    </div>
+                `;
+            } else {
+                iconContent = `
+                    <div class="w-16 h-16 rounded-xl overflow-hidden bg-white/20 flex items-center justify-center pointer-events-none mb-3">
+                        <img src="${icon.image}" alt="${icon.name}" class="w-12 h-12 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg hidden items-center justify-center text-white font-bold text-lg">
+                            ${icon.name.charAt(0).toUpperCase()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            iconDiv.innerHTML = `
+                ${iconContent}
+                <span class="text-white text-sm font-medium text-center truncate w-full pointer-events-none">${icon.name}</span>
+                <button class="absolute -top-2 -right-2 w-7 h-7 bg-red-500 hover:bg-red-600 rounded-full text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10" onclick="event.stopPropagation(); deleteIcon(${icon.id})">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            iconDiv.addEventListener('click', (e) => {
+                if (!e.target.closest('button') && !isDraggingPage) {
+                    window.open(icon.url, '_blank');
+                }
+            });
+
+            return iconDiv;
+        }
+
+        function createWidgetElement(widget) {
+            const widgetDiv = document.createElement('div');
+            widgetDiv.className = `liquid-glass rounded-2xl p-4 shadow-lg group relative select-none transition-all duration-200 hover:bg-white/25`;
+            widgetDiv.style.gridColumn = `span ${Math.min(widget.size.width, 4)}`;
+            widgetDiv.style.gridRow = `span ${Math.min(widget.size.height, 3)}`;
+            widgetDiv.setAttribute('data-widget-id', widget.id);
+
+            let content = '';
+            
+            switch(widget.type) {
+                case 'clock':
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const dateStr = now.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'});
+                    content = `
+                        <div class="text-center text-white h-full flex flex-col justify-center">
+                            <div class="text-2xl font-bold mb-1" id="clock-time-${widget.id}">${timeStr}</div>
+                            <div class="text-sm opacity-80" id="clock-date-${widget.id}">${dateStr}</div>
+                        </div>
+                    `;
+                    break;
+                case 'notes':
+                    content = `
+                        <div class="text-white h-full flex flex-col">
+                            <div class="text-sm font-medium mb-2 flex items-center"><i class="fas fa-sticky-note mr-2"></i>Notes</div>
+                            <textarea 
+                                class="flex-1 bg-white/10 border border-white/20 rounded-lg p-2 text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/40" 
+                                placeholder="Add your notes here..."
+                                onchange="updateWidgetData(${widget.id}, 'content', this.value)"
+                            >${widget.data.content}</textarea>
+                        </div>
+                    `;
+                    break;
+                case 'weather':
+                    content = `
+                        <div class="text-white h-full flex flex-col justify-center text-center">
+                            <div class="text-3xl mb-2"><i class="fas fa-cloud-sun"></i></div>
+                            <div class="text-xl font-bold">${widget.data.temp}</div>
+                            <div class="text-sm opacity-80">${widget.data.condition}</div>
+                            <div class="text-xs opacity-60 mt-1">${widget.data.location}</div>
+                        </div>
+                    `;
+                    break;
+                case 'links':
+                    const links = widget.data.links || [];
+                    const linkItems = links.slice(0, 3).map(link => 
+                        `<a href="${link.url}" target="_blank" class="text-xs text-white/80 hover:text-white truncate block">${link.name}</a>`
+                    ).join('');
+                    content = `
+                        <div class="text-white h-full flex flex-col cursor-pointer" onclick="editLinks(${widget.id})">
+                            <div class="text-sm font-medium mb-2 flex items-center"><i class="fas fa-link mr-2"></i>Quick Links</div>
+                            <div class="flex-1">
+                                ${linkItems || '<div class="text-xs opacity-60 text-center">Click to add links</div>'}
+                            </div>
+                        </div>
+                    `;
+                    break;
+                default:
+                    content = '<div class="text-white text-center">Widget</div>';
+            }
+
+            widgetDiv.innerHTML = `
+                ${content}
+                <button class="absolute -top-2 -right-2 w-7 h-7 bg-red-500 hover:bg-red-600 rounded-full text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10" onclick="event.stopPropagation(); deleteWidget(${widget.id})">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            // Start clock updates
+            if (widget.type === 'clock') {
+                const updateClock = () => {
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const dateStr = now.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'});
+                    
+                    const timeEl = document.getElementById(`clock-time-${widget.id}`);
+                    const dateEl = document.getElementById(`clock-date-${widget.id}`);
+                    
+                    if (timeEl) timeEl.textContent = timeStr;
+                    if (dateEl) dateEl.textContent = dateStr;
+                };
+                
+                setInterval(updateClock, 60000);
+            }
+
+            return widgetDiv;
+        }
+
+        function createPageIndicator(pageIndex) {
+            const indicator = document.createElement('div');
+            indicator.className = 'w-2 h-2 rounded-full transition-colors cursor-pointer';
+            indicator.addEventListener('click', () => goToPage(pageIndex));
+            return indicator;
+        }
+
+        function updatePageIndicators() {
+            const indicators = document.getElementById('pageIndicators').children;
+            for (let i = 0; i < indicators.length; i++) {
+                const indicator = indicators[i];
+                if (i === currentPage) {
+                    indicator.className = 'w-2 h-2 rounded-full bg-white transition-colors cursor-pointer';
+                } else {
+                    indicator.className = 'w-2 h-2 rounded-full bg-white/50 transition-colors cursor-pointer';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
